@@ -1,0 +1,14 @@
+{
+    "name": "veeam/virtualarchitect",
+    "description": "Veeam Virtual Architect",
+    "authors": [
+        {
+            "name": "Preben Berg",
+            "email": "preben.berg@veeam.com"
+        }
+    ],
+    "require": {
+            "components/jquery": "~2",
+            "twbs/bootstrap": "~3"
+    }
+}

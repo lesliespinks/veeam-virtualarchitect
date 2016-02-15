@@ -26,7 +26,11 @@ veeamSettings.VMsPerCore = 30;
 
 // default amount of cores per proxy
 // assuming physical proxy with 20 cores
-veeamSettings.proxyCores = 20;
+veeamSettings.pProxyCores = 20;
+
+// default amount of cores per proxy
+// assuming physical proxy with 20 cores
+veeamSettings.vProxyCores = 4;
 
 // number of VMs per job
 veeamSettings.VMsPerJobClassic = 50;
@@ -40,11 +44,11 @@ architect.VMsPerCore = function(backupWindow, changeRate, averageVMSize) {
 };
 
 architect.storageThroughput = function(usedTB, changeRate, backupWindow) {
-    var usedMB = usedTB * 1024;
-    var incBackup = usedMB * changeRate;
+    var usedMB = usedTB * 1000 * 1000;
+    var incBackup = usedMB * (changeRate / 100);
     var backupTime = backupWindow * 3600;
 
-    return incBackup/backupTime;
+    return Math.round(incBackup/backupTime);
 };
 
 architect.coresRequired = function(numVMs, VMsPerCore) {
@@ -66,6 +70,15 @@ architect.coresRequired = function(numVMs, VMsPerCore) {
     }
 
 };
+
+// Very simple formula assuming repositories use 50% of the cores needed by proxies
+architect.repositoryServerCores = function(proxyCores) {
+    return proxyCores * 0.5;
+}
+
+architect.repositoryServerRAM = function(concurrentJobs) {
+    return concurrentJobs * 4;
+}
 
 architect.vbrServerCores = function(numVMs, mode) {
 

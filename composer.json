@@ -9,6 +9,7 @@
     ],
     "require": {
             "components/jquery": "~2",
-            "twbs/bootstrap": "~3"
+            "twbs/bootstrap": "~3",
+            "nostalgiaz/bootstrap-switch": "~3"
     }
 }

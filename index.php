@@ -130,6 +130,7 @@ require 'vendor/autoload.php';
             '</div>');
 
           $('#proxyResult').html('');
+          $('#repositoryResult').html('');
 
         } else {
 
@@ -151,9 +152,9 @@ require 'vendor/autoload.php';
           );
 
           if (client.combineProxyRepo == true) {
-            $('#proxyResult').html('');
+            $('#repositoryResult').html('');
 
-            $('#repositoryResult').html('<div class="well">' +
+            $('#proxyResult').html('<div class="well">' +
               '<h1>Proxy and repository servers</h1>' +
               '<p>Building your own backup appliance? This is the way to go.</p>' +
               '<p>' + physAppliance + ' physical ' + pluralize('appliance', physAppliance) + ' ' + pluralize('is', physAppliance) + ' required</p>' +

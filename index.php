@@ -256,15 +256,20 @@ require 'vendor/autoload.php';
             <input type="number" min="0" max="24" step="1" name="backupWindow" id="backupWindow" class="form-control input-lg" autocomplete="off" />
           </div>
 
-          <div class="col-sm-push-4 clearfix">
-            <label for="combineProxyRepo">Combine proxy and repository</label>
-            <p><input type="checkbox" name="combineProxyRepo" id="combineProxyRepo" /></p>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="combineProxyRepo">Appliance&nbsp;mode</label>
+              <p><input type="checkbox" name="combineProxyRepo" id="combineProxyRepo" /></p>
+            </div>
           </div>
 
-          <div class="col-sm-push-4 clearfix">
-            <label for="backupCopyEnabled">Enable Backup Copy Job</label>
-            <p><input type="checkbox" name="backupCopyEnabled" id="backupCopyEnabled" /></p>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="backupCopyEnabled">Offsite&nbsp;backups</label>
+              <p><input type="checkbox" name="backupCopyEnabled" id="backupCopyEnabled" /></p>
+            </div>
           </div>
+
         </form>
         <div class="col-sm-push-2" id="storageThroughput">
           <!-- Placeholder -->

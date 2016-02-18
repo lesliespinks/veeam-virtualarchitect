@@ -46,7 +46,9 @@ require 'vendor/autoload.php';
           numVMs = calcVMs;
         }
 
-        client.averageVMSize = Math.round((usedTB * 1000) / numVMs);
+        if (usedTB > 0) {
+          client.averageVMSize = Math.round((usedTB * 1000) / numVMs);
+        }
 
         updateResults(numVMs);
       });
@@ -75,7 +77,16 @@ require 'vendor/autoload.php';
       function updateResults(numVMs) {
 
         var changeRate = $('#changeRate').val();
+        if (changeRate == 0) {
+          changeRate = 1
+          $('#changeRate').val(changeRate);
+        }
+
         var backupWindow = $('#backupWindow').val();
+        if (backupWindow == 0) {
+          backupWindow = 1;
+          $('#backupWindow').val(backupWindow);
+        }
 
         $('#usedTB').val( Math.round((numVMs * client.averageVMSize) / 1000) );
         var usedTB = $('#usedTB').val();

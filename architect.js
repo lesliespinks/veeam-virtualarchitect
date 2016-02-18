@@ -58,6 +58,7 @@ architect.coresRequired = function(numVMs, VMsPerCore) {
 
     // check if the raw throughput is higher than the calculated
     // cores - if yes, add a few more cores
+    // [TBD] Need to write better comments, because I do not remember my own logic behind this wizardry.
     client.fullBackup = (numVMs * client.averageVMSize)*1024;
     client.incBackup = client.fullBackup * client.changeRate;
 
@@ -71,13 +72,18 @@ architect.coresRequired = function(numVMs, VMsPerCore) {
 
 };
 
-// Very simple formula assuming repositories use 50% of the cores needed by proxies
-architect.repositoryServerCores = function(proxyCores) {
-    return proxyCores * 0.5;
+// [TBD] Fix the calculation method used for repositories
+architect.repositoryServerCores = function(concurrentJobs) {
+    return (Math.ceil((concurrentJobs)/2)*2);
 }
 
 architect.repositoryServerRAM = function(concurrentJobs) {
     return concurrentJobs * 4;
+}
+
+architect.applianceCores = function(proxyCores, repositoryCores) {
+    // Doing nothing but rounding up to nearest 4 cores. So pretty.
+    return (Math.ceil((proxyCores+repositoryCores)/4)*4);
 }
 
 architect.vbrServerCores = function(numVMs, mode) {
@@ -98,17 +104,3 @@ architect.vbrServerCores = function(numVMs, mode) {
     return (calcCores > numCores) ? calcCores : numCores;
 
 }
-
-
-// Using these parameters, estimate how many VMs one task can process
-// assuming no other bottlenecks
-//client.VMsPerCore = architect.VMsPerCore(client.backupWindow, client.changeRate, client.averageVMSize);
-
-//client.numVMs = 500;
-//client.coresRequired = architect.coresRequired(client.numVMs, client.VMsPerCore);
-
-
-
-/*console.log(architect.VMsPerCore(4, 0.1, 100));
-console.log(architect.VMsPerCore(8, 0.05, 100));
-console.log(architect.VMsPerCore(8, 0.05, 200));*/

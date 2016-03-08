@@ -39,6 +39,11 @@ veeamSettings.vProxyCores = 6;
 veeamSettings.VMsPerJobClassic = 20;
 veeamSettings.VMsPerJobPerVMChain = 100;
 
+architect.applianceCores = function(proxyCores, repositoryCores) {
+    // Doing nothing but rounding up to nearest 4 cores. So pretty.
+    return (Math.ceil((proxyCores+repositoryCores)/4)*4);
+};
+
 /**
  * Backup Repository servers
  *
@@ -57,7 +62,7 @@ architect.repositoryServer = function(proxyCPU) {
     }
 
     return result;
-}
+};
 
 /**
  * Backup Proxy servers

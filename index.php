@@ -220,7 +220,7 @@ require 'vendor/autoload.php';
         <ul class="nav navbar-nav">
           <li role="presentation"><a href="http://rps.dewin.me" target="new">Restore Point Simulator</a></li>
           <li class="active" role="presentation"><a href="#">Virtual Architect</a></li>
-          <li role="presentation"><a href="#">Best Practices Wiki</a></li>
+          <li role="presentation"><a href="http://bp.veeam.expert" target="new">Best Practices Wiki</a></li>
         </ul>
       </div>
     </div>

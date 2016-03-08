@@ -59,7 +59,6 @@ require 'vendor/autoload.php';
       });
 
       // Initialize the fancy switch boxes
-
       var switchCombineProxyRepo = $('#combineProxyRepo').bootstrapSwitch();
       switchCombineProxyRepo.on('switchChange.bootstrapSwitch', function(event, state) {
         client.combineProxyRepo = state;
@@ -69,6 +68,17 @@ require 'vendor/autoload.php';
       var switchBackupCopyEnabled = $('#backupCopyEnabled').bootstrapSwitch();
       switchBackupCopyEnabled.on('switchChange.bootstrapSwitch', function(event, state) {
         client.backupCopyEnabled = state;
+        updateResults($('#numVMs').val());
+      });
+
+      var switchSplitFullBackup = $('#backupSplit').bootstrapSwitch();
+      switchSplitFullBackup.on('switchChange.bootstrapSwitch', function(event, state) {
+        if(state) {
+          client.fullSplitDays = 7;
+        } else {
+          client.fullSplitDays = 1;
+        }
+
         updateResults($('#numVMs').val());
       });
 
@@ -94,38 +104,42 @@ require 'vendor/autoload.php';
         // Calculate stuff for B&R server and the SQL backend
         var vbrServer = architect.vbrServer(numVMs, 'classic', client.backupCopyEnabled);
         var vbrSQL = architect.SQLDatabase(vbrServer.totalJobs);
+        var vbrProxy = architect.proxyServer(numVMs);
 
-        // Calculate storage throughput
-        var changeTB = Math.round(usedTB * (changeRate/100));
-
-        $('#storageThroughput').html(
-          '<p>' +
-          'Daily changed data is <b>' + changeTB +' TB</b>, and thus assuming production storage can sustain ' +
-          '<b>' + architect.storageThroughput(usedTB, changeRate, backupWindow) + ' MB/s</b>' +
-          ' throughout the backup window.' +
-          '</p>'
-        );
+        if (client.fullSplitDays > 1) {
+          $('#storageThroughput').html(
+            '<h3>Periodical full backup</h3>' +
+            '<p>When enabling <b>Split full backup</b>, the tool assumes periodical full backups are spread throughout the week ' +
+            'and increases proxy server compute requirements accordingly.' +
+            '</p>' +
+            '<p>Daily full size is <b>' + Math.round(vbrProxy.partialFullBackup / 1024 / 1024) + ' TB</b> daily at <b>' + vbrProxy.partialFullThroughput + ' MB/s</b>' +
+            '<p>Daily incremental size is <b>' + Math.round(vbrProxy.partialIncBackup / 1024 / 1024) +' TB</b> at <b>' + vbrProxy.partialIncThroughput + ' MB/s</b>' +
+            '<p>' +
+            'Total throughput is increased to <b>' + Math.round(vbrProxy.partialFullThroughput+vbrProxy.partialIncThroughput) + ' MB/s</b>' +
+            '</p>'
+          )
+        } else {
+          $('#storageThroughput').html(
+            '<h3>Incremental forever</h3>' +
+            '<p>' +
+            'Daily changed data is <b>' + Math.round( (vbrProxy.incBackup) / 1024 / 1024) +' TB</b>, and thus assuming production storage can sustain ' +
+            '<b>' + Math.round(vbrProxy.incThroughput) + ' MB/s</b>' + ' throughout the backup window.</p>'
+          )
+        }
 
         // Begin calculating stuff for proxy servers
         client.changeRate = changeRate / 100;
         client.backupWindow = backupWindow;
-        client.VMsPerCore = architect.VMsPerCore(client.backupWindow, client.changeRate, client.averageVMSize);
-
-        var coresRequired = architect.coresRequired(numVMs, client.VMsPerCore);
-        // According to Best Practices guide, 2 GB of RAM is required per CPU core
-        var RAMRequired = coresRequired * 2;
-        var physProxy = Math.ceil( coresRequired / veeamSettings.pProxyCores );
-        var virtProxy = Math.ceil( coresRequired/ veeamSettings.vProxyCores );
+        client.fullBackupWindow = backupWindow*2;
 
         var repositoryCores = architect.repositoryServerCores(vbrServer.totalJobs);
         var repositoryRAM = architect.repositoryServerRAM(vbrServer.totalJobs);
 
-        var applianceCores = architect.applianceCores(coresRequired, repositoryCores);
-        var applianceRAM = (RAMRequired + repositoryRAM);
+        var applianceCores = architect.applianceCores(vbrProxy.CPU, repositoryCores);
+        var applianceRAM = (vbrProxy.RAM + repositoryRAM);
         var physAppliance = Math.ceil( applianceCores / veeamSettings.pProxyCores );
 
         // Output simple mode for small business deployment
-
         if (numVMs <= 150) {
           $('#vbrServerResult').html('<div class="well"><h1>Backup & Replication</h1>' +
             '<p>Don\'t worry. A single server is all you need.</p>' +
@@ -140,7 +154,6 @@ require 'vendor/autoload.php';
         } else {
 
           // Backup server
-
           if (client.backupCopyEnabled) {
             var jobString = '<p>' + vbrServer.jobs + ' backup ' + pluralize('job', vbrServer.jobs) + '<br />' +
               vbrServer.copyJobs + ' backup copy or tape ' + pluralize('job', vbrServer.copyJobs) + '</p>';
@@ -152,12 +165,12 @@ require 'vendor/autoload.php';
             jobString +
             '<b>System requirements</b>' +
             '<div class="row">' +
-            ' <div class="col-md-6">Backup & Replication</div>' +
-            ' <div class="col-md-6">' + vbrServer.CPU + ' cores and ' + vbrServer.RAM + ' GB RAM</div>' +
+            ' <div class="col-md-6 col-xs-4">Backup & Replication</div>' +
+            ' <div class="col-md-6 col-xs-4">' + vbrServer.CPU + ' cores and ' + vbrServer.RAM + ' GB RAM</div>' +
             '</div>' +
             '<div class="row">' +
-            ' <div class="col-md-6">SQL Server</div>' +
-            ' <div class="col-md-6">' + vbrSQL.CPU + ' cores and ' + vbrSQL.RAM + ' GB RAM</div>' +
+            ' <div class="col-md-6 col-xs-4">SQL Server</div>' +
+            ' <div class="col-md-6 col-xs-4">' + vbrSQL.CPU + ' cores and ' + vbrSQL.RAM + ' GB RAM</div>' +
             '</div>' +
             '</div>'
           );
@@ -175,9 +188,9 @@ require 'vendor/autoload.php';
 
           } else {
             $('#proxyResult').html('<div class="well"><h1>Proxy servers</h1>' +
-              '<p>' + physProxy + ' physical proxy ' + pluralize('server', physProxy) + '<br />' +
-              virtProxy + ' virtual proxy ' + pluralize('server', virtProxy) + '</p>' +
-              'System requirements: ' + coresRequired + ' cores and ' + RAMRequired + ' GB RAM' +
+              '<p>' + vbrProxy.pNumProxy + ' physical proxy ' + pluralize('server', vbrProxy.pNumProxy) + '<br />' +
+              vbrProxy.vNumProxy + ' virtual proxy ' + pluralize('server', vbrProxy.vNumProxy) + '</p>' +
+              'System requirements: ' + vbrProxy.CPU + ' cores and ' + vbrProxy.RAM + ' GB RAM' +
               '' +
               '</div>');
 
@@ -253,9 +266,19 @@ require 'vendor/autoload.php';
             </div>
           </div>
 
-          <div class="form-group input-group-lg">
-            <label for="backupWindow">Backup window</label>
-            <input type="number" min="0" max="24" step="1" name="backupWindow" id="backupWindow" class="form-control input-lg" autocomplete="off" />
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group input-group-lg">
+                <label for="backupWindow">Backup window</label>
+                <input type="number" min="0" max="24" step="1" name="backupWindow" id="backupWindow" class="form-control input-lg" autocomplete="off" />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group input-group-lg">
+                <label for="backupSplit">Split full backup</label>
+                <p><input type="checkbox" name="backupSplit" id="backupSplit" /></p>
+              </div>
+            </div>
           </div>
 
           <div class="col-md-6">

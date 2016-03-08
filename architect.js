@@ -39,54 +39,25 @@ veeamSettings.vProxyCores = 6;
 veeamSettings.VMsPerJobClassic = 20;
 veeamSettings.VMsPerJobPerVMChain = 100;
 
-architect.VMsPerCore = function(backupWindow, changeRate, averageVMSize) {
-    return ( ( (veeamSettings.VMsPerCore * (veeamSettings.changeRate/changeRate) ) * (backupWindow/veeamSettings.backupWindow) ) * (veeamSettings.averageVMSize/averageVMSize) );
-};
+/**
+ * Backup Repository servers
+ *
+ * @param proxyCPU {number} Number of CPUs required for proxy servers
+ * @returns {object} Information about repository servers
+ */
+architect.repositoryServer = function(proxyCPU) {
+    var result = {};
 
-architect.storageThroughput = function(usedTB, changeRate, backupWindow) {
-    var usedMB = usedTB * 1000 * 1000;
-    var incBackup = usedMB * (changeRate / 100);
-    var backupTime = backupWindow * 3600;
+    result.CPU = proxyCPU * 0.5;
+    result.RAM = result.CPU * 4;
 
-    return Math.round(incBackup/backupTime);
-};
-
-
-architect.coresRequired = function(numVMs, VMsPerCore) {
-
-    var result = ( Math.ceil( (numVMs / VMsPerCore) / 4 ) * 4 );
-    var calcThroughput = result * (veeamSettings.processingPerCore / veeamSettings.incrementalPenalty);
-
-    // check if the raw throughput is higher than the calculated
-    // cores - if yes, add a few more cores
-    // [TBD] Need to write better comments, because I do not remember my own logic behind this wizardry.
-    client.fullBackup = (numVMs * client.averageVMSize)*1024;
-    client.incBackup = client.fullBackup * client.changeRate;
-
-    var rawThroughput = client.incBackup / (client.backupWindow * 3600);
-
-    if (rawThroughput > calcThroughput) {
-        return ( Math.ceil( (rawThroughput / (veeamSettings.processingPerCore / veeamSettings.incrementalPenalty) ) / 4 ) * 4 );
-    } else {
-        return result;
+    if (client.backupCopyEnabled) {
+        result.CPU = Math.ceil((result.CPU * 2) * 0.65);
+        result.RAM = Math.ceil((result.RAM * 2) * 0.65);
     }
 
-};
-
-// [TBD] Fix the calculation method used for repositories
-architect.repositoryServerCores = function(concurrentJobs) {
-    return (Math.ceil((concurrentJobs)/2)*2);
+    return result;
 }
-
-architect.repositoryServerRAM = function(concurrentJobs) {
-    return concurrentJobs * 4;
-}
-
-architect.applianceCores = function(proxyCores, repositoryCores) {
-    // Doing nothing but rounding up to nearest 4 cores. So pretty.
-    return (Math.ceil((proxyCores+repositoryCores)/4)*4);
-}
-
 
 /**
  * Backup Proxy servers

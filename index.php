@@ -105,6 +105,7 @@ require 'vendor/autoload.php';
         var vbrServer = architect.vbrServer(numVMs, 'classic', client.backupCopyEnabled);
         var vbrSQL = architect.SQLDatabase(vbrServer.totalJobs);
         var vbrProxy = architect.proxyServer(numVMs);
+        var vbrRepository = architect.repositoryServer(vbrProxy.CPU);
 
         if (client.fullSplitDays > 1) {
           $('#storageThroughput').html(
@@ -132,12 +133,9 @@ require 'vendor/autoload.php';
         client.backupWindow = backupWindow;
         client.fullBackupWindow = backupWindow*2;
 
-        var repositoryCores = architect.repositoryServerCores(vbrServer.totalJobs);
-        var repositoryRAM = architect.repositoryServerRAM(vbrServer.totalJobs);
-
-        var applianceCores = architect.applianceCores(vbrProxy.CPU, repositoryCores);
-        var applianceRAM = (vbrProxy.RAM + repositoryRAM);
-        var physAppliance = Math.ceil( applianceCores / veeamSettings.pProxyCores );
+        var applianceCores = architect.applianceCores(vbrProxy.CPU, vbrRepository.CPU);
+        var applianceRAM = (vbrProxy.RAM + vbrRepository.RAM);
+        var physAppliance = Math.ceil( applianceCores / client.pProxyCores );
 
         // Output simple mode for small business deployment
         if (numVMs <= 150) {
@@ -197,7 +195,7 @@ require 'vendor/autoload.php';
             $('#repositoryResult').html('<div class="well">' +
               '<h1>Backup Repository</h1>' +
               '<p>The following sizing assumes all jobs run simultaneously.</p>' +
-              'System requirements: ' + repositoryCores + ' cores and ' + repositoryRAM + ' GB RAM' +
+              'System requirements: ' + vbrRepository.CPU + ' cores and ' + vbrRepository.RAM + ' GB RAM' +
               '</div>');
           }
 

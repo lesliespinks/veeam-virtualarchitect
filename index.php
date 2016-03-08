@@ -91,18 +91,11 @@ require 'vendor/autoload.php';
         $('#usedTB').val( Math.round((numVMs * client.averageVMSize) / 1000) );
         var usedTB = $('#usedTB').val();
 
-        // Begin calculating stuff for VBR Server
-        var vbrCores = architect.vbrServerCores(numVMs, 'pervm');
-        var vbrRAM = vbrCores * veeamSettings.vbrServerRAM;
-        var vbrJobs = Math.ceil( numVMs / veeamSettings.VMsPerJobPerVMChain );
-
-        if (client.backupCopyEnabled) {
-          vbrCores = vbrCores*2;
-          vbrRAM = vbrRAM*2;
-        }
+        // Calculate stuff for B&R server and the SQL backend
+        var vbrServer = architect.vbrServer(numVMs, 'classic', client.backupCopyEnabled);
+        var vbrSQL = architect.SQLDatabase(vbrServer.totalJobs);
 
         // Calculate storage throughput
-
         var changeTB = Math.round(usedTB * (changeRate/100));
 
         $('#storageThroughput').html(
@@ -119,12 +112,13 @@ require 'vendor/autoload.php';
         client.VMsPerCore = architect.VMsPerCore(client.backupWindow, client.changeRate, client.averageVMSize);
 
         var coresRequired = architect.coresRequired(numVMs, client.VMsPerCore);
+        // According to Best Practices guide, 2 GB of RAM is required per CPU core
         var RAMRequired = coresRequired * 2;
         var physProxy = Math.ceil( coresRequired / veeamSettings.pProxyCores );
         var virtProxy = Math.ceil( coresRequired/ veeamSettings.vProxyCores );
 
-        var repositoryCores = architect.repositoryServerCores(vbrJobs);
-        var repositoryRAM = architect.repositoryServerRAM(vbrJobs);
+        var repositoryCores = architect.repositoryServerCores(vbrServer.totalJobs);
+        var repositoryRAM = architect.repositoryServerRAM(vbrServer.totalJobs);
 
         var applianceCores = architect.applianceCores(coresRequired, repositoryCores);
         var applianceRAM = (RAMRequired + repositoryRAM);
@@ -148,17 +142,23 @@ require 'vendor/autoload.php';
           // Backup server
 
           if (client.backupCopyEnabled) {
-            var jobString = '<p>' + vbrJobs + ' backup ' + pluralize('job', vbrJobs) + '<br />' +
-              vbrJobs + ' backup copy or tape ' + pluralize('job', vbrJobs) + '</p>';
+            var jobString = '<p>' + vbrServer.jobs + ' backup ' + pluralize('job', vbrServer.jobs) + '<br />' +
+              vbrServer.copyJobs + ' backup copy or tape ' + pluralize('job', vbrServer.copyJobs) + '</p>';
           } else {
-            var jobString = '<p>' + vbrJobs + ' backup ' + pluralize('job', vbrJobs) + '<br />&nbsp;</p>';
+            var jobString = '<p>' + vbrServer.jobs + ' backup ' + pluralize('job', vbrServer.jobs) + '<br />&nbsp;</p>';
           }
 
           $('#vbrServerResult').html('<div class="well"><h1>Backup & Replication</h1>' +
             jobString +
-            'System requirements: ' + vbrCores + ' cores and ' + vbrRAM + ' GB RAM' +
-            '<br /><small style="color: red">[TBD] Does not limit job size based on average VM size<br />' +
-            '[TBD] What about SQL?</small><br />' +
+            '<b>System requirements</b>' +
+            '<div class="row">' +
+            ' <div class="col-md-6">Backup & Replication</div>' +
+            ' <div class="col-md-6">' + vbrServer.CPU + ' cores and ' + vbrServer.RAM + ' GB RAM</div>' +
+            '</div>' +
+            '<div class="row">' +
+            ' <div class="col-md-6">SQL Server</div>' +
+            ' <div class="col-md-6">' + vbrSQL.CPU + ' cores and ' + vbrSQL.RAM + ' GB RAM</div>' +
+            '</div>' +
             '</div>'
           );
 
@@ -214,7 +214,9 @@ require 'vendor/autoload.php';
   <nav class="navbar navbar-default">
     <div class="container-fluid">
       <div class="navbar-header"><a class="navbar-brand navbar-link" href="/">Veeam<b>Toolbox</b></a>
-        <button class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navcol-1"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button>
+        <button class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navcol-1"><span class="sr-only">
+            Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span>
+        </button>
       </div>
       <div class="collapse navbar-collapse" id="navcol-1">
         <ul class="nav navbar-nav">

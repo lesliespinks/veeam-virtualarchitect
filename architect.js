@@ -33,11 +33,8 @@ veeamSettings.pProxyCores = 20;
 veeamSettings.vProxyCores = 4;
 
 // number of VMs per job
-veeamSettings.VMsPerJobClassic = 50;
+veeamSettings.VMsPerJobClassic = 20;
 veeamSettings.VMsPerJobPerVMChain = 100;
-
-// GB RAM per CPU core
-veeamSettings.vbrServerRAM = 4;
 
 architect.VMsPerCore = function(backupWindow, changeRate, averageVMSize) {
     return ( ( (veeamSettings.VMsPerCore * (veeamSettings.changeRate/changeRate) ) * (backupWindow/veeamSettings.backupWindow) ) * (veeamSettings.averageVMSize/averageVMSize) );
@@ -50,6 +47,7 @@ architect.storageThroughput = function(usedTB, changeRate, backupWindow) {
 
     return Math.round(incBackup/backupTime);
 };
+
 
 architect.coresRequired = function(numVMs, VMsPerCore) {
 
@@ -86,21 +84,60 @@ architect.applianceCores = function(proxyCores, repositoryCores) {
     return (Math.ceil((proxyCores+repositoryCores)/4)*4);
 }
 
-architect.vbrServerCores = function(numVMs, mode) {
+/**
+ * Backup & Replication Server
+ *
+ * @param numVMs {number} Number of virtual machines
+ * @param mode {string} "pervm" or "classic"
+ * @param offsite {boolean}
+ * @return {object} Information about backup server and jobs
+*/
+architect.vbrServer = function(numVMs, mode, offsite) {
 
-    var numCores = 2;
-    var calcJobs;
+    var result = {}
+
+    result.offsite = false;
+    result.copyJobs = 0;
 
     if (mode == "classic") {
-        calcJobs = Math.ceil(numVMs / veeamSettings.VMsPerJobClassic);
+        result.jobs = Math.ceil(numVMs / veeamSettings.VMsPerJobClassic);
     }
 
     if (mode == "pervm") {
-        calcJobs = Math.ceil(numVMs / veeamSettings.VMsPerJobPerVMChain);
+        result.jobs = Math.ceil(numVMs / veeamSettings.VMsPerJobPerVMChain);
     }
 
-    var calcCores = ( Math.ceil( calcJobs / 10 ) * 2 );
+    if (offsite == true) {
+        result.copyJobs = result.jobs;
+        result.offsite = true;
+    }
 
-    return (calcCores > numCores) ? calcCores : numCores;
+    result.totalJobs = result.jobs + result.copyJobs;
 
+    result.CPU = ( Math.ceil( result.totalJobs / 10 / 2 ) * 2 );
+    result.RAM = ( Math.ceil( (result.totalJobs / 10) * 4 ) );
+
+    return result;
+}
+
+/**
+ * SQL Server database
+ *
+ * @param numJobs {number} Number of concurrent jobs
+ * @returns {object} Information about SQL Server
+ */
+architect.SQLDatabase = function(numJobs) {
+
+    var databaseCorePerJob = 0.08;
+
+    var result = {};
+    result.CPU = Math.ceil(numJobs * databaseCorePerJob);
+
+    if (result.CPU < 2) {
+        result.CPU = 2;
+    }
+
+    result.RAM = result.CPU * 2;
+
+    return result;
 }

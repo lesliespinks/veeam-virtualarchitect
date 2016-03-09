@@ -1,5 +1,5 @@
-var client = {}
-var veeamSettings = {}
+var client = {};
+var veeamSettings = {};
 var architect = {};
 
 // average reduction in throughput at incremental passes
@@ -160,7 +160,7 @@ architect.vbrServer = function(numVMs, mode, offsite) {
     result.RAM = ( Math.ceil( (result.totalJobs / 10) * 4 ) );
 
     return result;
-}
+};
 
 /**
  * SQL Server database
@@ -182,4 +182,4 @@ architect.SQLDatabase = function(numJobs) {
     result.RAM = result.CPU * 2;
 
     return result;
-}
+};

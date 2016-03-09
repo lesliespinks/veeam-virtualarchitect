@@ -102,7 +102,7 @@ require 'vendor/autoload.php';
         var usedTB = $('#usedTB').val();
 
         // Calculate stuff for B&R server and the SQL backend
-        var vbrServer = architect.vbrServer(numVMs, 'classic', client.backupCopyEnabled);
+        var vbrServer = architect.vbrServer(numVMs, 'pervm', client.backupCopyEnabled);
         var vbrSQL = architect.SQLDatabase(vbrServer.totalJobs);
         var vbrProxy = architect.proxyServer(numVMs);
         var vbrRepository = architect.repositoryServer(vbrProxy.CPU);

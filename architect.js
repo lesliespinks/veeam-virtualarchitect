@@ -37,7 +37,7 @@ veeamSettings.vProxyCores = 6;
 
 // number of VMs per job
 veeamSettings.VMsPerJobClassic = 20;
-veeamSettings.VMsPerJobPerVMChain = 100;
+veeamSettings.VMsPerJobPerVMChain = 80;
 
 architect.applianceCores = function(proxyCores, repositoryCores) {
     // Doing nothing but rounding up to nearest 4 cores. So pretty.
@@ -53,11 +53,11 @@ architect.applianceCores = function(proxyCores, repositoryCores) {
 architect.repositoryServer = function(proxyCPU) {
     var result = {};
 
-    result.CPU = proxyCPU * 0.5;
+    result.CPU = Math.ceil((proxyCPU * 0.5 ) / 2) * 2;
     result.RAM = result.CPU * 4;
 
     if (client.backupCopyEnabled) {
-        result.CPU = Math.ceil((result.CPU * 2) * 0.65);
+        result.CPU = Math.ceil(( (result.CPU * 2) * 0.65 ) / 2) * 2;
         result.RAM = Math.ceil((result.RAM * 2) * 0.65);
     }
 
@@ -154,7 +154,10 @@ architect.vbrServer = function(numVMs, mode, offsite) {
         result.offsite = true;
     }
 
-    result.totalJobs = result.jobs + result.copyJobs;
+    var concurrentJobs = result.jobs * 0.65;
+
+
+    result.totalJobs = concurrentJobs + result.copyJobs;
 
     result.CPU = ( Math.ceil( result.totalJobs / 10 / 2 ) * 2 );
     result.RAM = ( Math.ceil( (result.totalJobs / 10) * 4 ) );
@@ -173,7 +176,7 @@ architect.SQLDatabase = function(numJobs) {
     var databaseCorePerJob = 0.08;
 
     var result = {};
-    result.CPU = Math.ceil(numJobs * databaseCorePerJob);
+    result.CPU = Math.ceil( ( numJobs * databaseCorePerJob ) / 2) * 2;
 
     if (result.CPU < 2) {
         result.CPU = 2;

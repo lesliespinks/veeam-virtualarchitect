@@ -91,20 +91,27 @@ require 'vendor/autoload.php';
           changeRate = 1
           $('#changeRate').val(changeRate);
         }
+        client.changeRate = changeRate/100;
+
 
         var backupWindow = $('#backupWindow').val();
         if (backupWindow == 0) {
           backupWindow = 1;
           $('#backupWindow').val(backupWindow);
         }
+        client.backupWindow = backupWindow;
 
         $('#usedTB').val( Math.round((numVMs * client.averageVMSize) / 1000) );
         var usedTB = $('#usedTB').val();
 
         // Calculate stuff for B&R server and the SQL backend
-        var vbrServer = architect.vbrServer(numVMs, 'pervm', client.backupCopyEnabled);
-        var vbrSQL = architect.SQLDatabase(vbrServer.totalJobs);
+        var vbrServer = architect.vbrServer(numVMs, client.mode, client.backupCopyEnabled);
+        var vbrSQL = architect.SQLDatabase(numVMs, client.backupCopyEnabled);
+
+        // Begin calculating stuff for proxy servers
+        client.fullBackupWindow = client.backupWindow*2;
         var vbrProxy = architect.proxyServer(numVMs);
+
         var vbrRepository = architect.repositoryServer(vbrProxy.CPU);
 
         if (client.fullSplitDays > 1) {
@@ -127,11 +134,6 @@ require 'vendor/autoload.php';
             '<b>' + Math.round(vbrProxy.incThroughput) + ' MB/s</b>' + ' throughout the backup window.</p>'
           )
         }
-
-        // Begin calculating stuff for proxy servers
-        client.changeRate = changeRate / 100;
-        client.backupWindow = backupWindow;
-        client.fullBackupWindow = backupWindow*2;
 
         var applianceCores = architect.applianceCores(vbrProxy.CPU, vbrRepository.CPU);
         var applianceRAM = (vbrProxy.RAM + vbrRepository.RAM);
@@ -160,7 +162,10 @@ require 'vendor/autoload.php';
           }
 
           $('#vbrServerResult').html('<div class="well"><h1>Backup & Replication</h1>' +
-            jobString +
+            //jobString +
+            '<p>For environments with less than 500 VMs, it is recommended to use SQL Server Express that ships with Veeam Backup & Replication. ' +
+            'In larger environments, it is recommended to use SQL Server Standard or higher for better scalability.</p>' +
+            '<p>For more information, please see the corresponding section of the <a href="http://bp.veeam.expert/resource_planning/veeam_backup_and_replication_database.html">Best Practices guide</a>.</p>' +
             '<b>System requirements</b>' +
             '<div class="row">' +
             ' <div class="col-md-6 col-xs-4">Backup & Replication</div>' +
@@ -178,23 +183,24 @@ require 'vendor/autoload.php';
 
             $('#proxyResult').html('<div class="well">' +
               '<h1>Proxy and repository servers</h1>' +
-              '<p>Building your own backup appliance? This is the way to go.</p>' +
-              '<p>' + physAppliance + ' physical ' + pluralize('appliance', physAppliance) + ' ' + pluralize('is', physAppliance) + ' required</p>' +
-              'System requirements: ' + applianceCores + ' cores and ' + applianceRAM + ' GB RAM' +
+              '<p>A combined proxy and repository server (or backup appliance) can simplify the scale-out model as the infrastructure grows. ' +
+              'When combining the proxy and repository, system requirements must be "stacked".</p>' +
+              '<p>System requirements: ' + applianceCores + ' cores and ' + applianceRAM + ' GB RAM</p>' +
+              '<p><b>Example:</b><br />' + physAppliance + ' physical ' + pluralize('appliance', physAppliance) + ' with ' + client.pProxyCores + ' cores and ' + client.pProxyCores * 6 + ' GB RAM' +
               '' +
               '</div>');
 
           } else {
             $('#proxyResult').html('<div class="well"><h1>Proxy servers</h1>' +
-              '<p>' + vbrProxy.pNumProxy + ' physical proxy ' + pluralize('server', vbrProxy.pNumProxy) + '<br />' +
-              vbrProxy.vNumProxy + ' virtual proxy ' + pluralize('server', vbrProxy.vNumProxy) + '</p>' +
-              'System requirements: ' + vbrProxy.CPU + ' cores and ' + vbrProxy.RAM + ' GB RAM' +
+              '<p>System requirements: ' + vbrProxy.CPU + ' cores and ' + vbrProxy.RAM + ' GB RAM</p>' +
+              '<p><b>Examples:</b><br />' + vbrProxy.pNumProxy + ' physical proxy ' + pluralize('server', vbrProxy.pNumProxy) + ' with ' + client.pProxyCores + ' cores and ' + client.pProxyCores*2 + ' GB RAM or<br />' +
+              vbrProxy.vNumProxy + ' virtual proxy ' + pluralize('server', vbrProxy.vNumProxy) + ' with ' + client.vProxyCores + ' cores and ' + client.vProxyCores*2 + ' GB RAM</p>' +
               '' +
               '</div>');
 
             $('#repositoryResult').html('<div class="well">' +
               '<h1>Backup Repository</h1>' +
-              '<p>The following sizing assumes all jobs run simultaneously.</p>' +
+              '<p>Repository sizing depends on the amount of data stored, and the number of streams it handles. Enabling offsite copies increases the system requirements.</p>' +
               'System requirements: ' + vbrRepository.CPU + ' cores and ' + vbrRepository.RAM + ' GB RAM' +
               '</div>');
           }

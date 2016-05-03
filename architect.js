@@ -8,7 +8,7 @@ var architect = {};
 veeamSettings.incrementalPenalty = 5;
 
 // average processing speed per single VMDK read
-veeamSettings.processingPerCore = 50;
+veeamSettings.processingPerCore = 62.5;
 
 // average VM size in GB
 veeamSettings.averageVMSize = 100;
@@ -29,19 +29,24 @@ veeamSettings.VMsPerCore = 30;
 
 // default amount of cores per proxy
 // assuming physical proxy with 20 cores
-veeamSettings.pProxyCores = 20;
+veeamSettings.pProxyCores = 16;
 
 // default amount of cores per proxy
 // assuming physical proxy with 20 cores
 veeamSettings.vProxyCores = 6;
 
 // number of VMs per job
-veeamSettings.VMsPerJobClassic = 20;
+veeamSettings.VMsPerJobClassic = 40;
 veeamSettings.VMsPerJobPerVMChain = 80;
+veeamSettings.mode = "classic"; // Default mode
+
+architect.round = function(num, round) {
+    return (Math.ceil(num / round) * round);
+};
 
 architect.applianceCores = function(proxyCores, repositoryCores) {
-    // Doing nothing but rounding up to nearest 4 cores. So pretty.
-    return (Math.ceil((proxyCores+repositoryCores)/4)*4);
+    // Reducing the CPU required for repository by 50% when combined as repository.
+    return architect.round(proxyCores+(repositoryCores*0.5),4);
 };
 
 /**
@@ -136,7 +141,7 @@ architect.proxyServer = function(numVMs) {
 */
 architect.vbrServer = function(numVMs, mode, offsite) {
 
-    var result = {}
+    var result = {};
 
     result.offsite = false;
     result.copyJobs = 0;
@@ -158,9 +163,10 @@ architect.vbrServer = function(numVMs, mode, offsite) {
 
 
     result.totalJobs = concurrentJobs + result.copyJobs;
+    result.totalJobsCPU = Math.ceil(result.totalJobs / 10);
 
-    result.CPU = ( Math.ceil( result.totalJobs / 10 / 2 ) * 2 );
-    result.RAM = ( Math.ceil( (result.totalJobs / 10) * 4 ) );
+    result.CPU = architect.round(result.totalJobsCPU, 2);
+    result.RAM = architect.round(result.CPU * 3, 4);
 
     return result;
 };
@@ -168,19 +174,28 @@ architect.vbrServer = function(numVMs, mode, offsite) {
 /**
  * SQL Server database
  *
- * @param numJobs {number} Number of concurrent jobs
+ * @param numVMs {number} Number of virtual machines
+ * @param offsite {bool} Determine of backup copy jobs are enabled
  * @returns {object} Information about SQL Server
  */
-architect.SQLDatabase = function(numJobs) {
+architect.SQLDatabase = function(numVMs, offsite) {
 
-    var databaseCorePerJob = 0.08;
+    if (offsite == true) {
+        numVMs = numVMs*1.5;
+    }
+
+    var databaseCorePerVM = 0.0045;
+
+    if (numVMs > 1000) {
+        var databaseCorePerVMCoefficient = 0.00125;
+    } else {
+        var databaseCorePerVMCoefficient = 0;
+    }
+
 
     var result = {};
-    result.CPU = Math.ceil( ( numJobs * databaseCorePerJob ) / 2) * 2;
 
-    if (result.CPU < 2) {
-        result.CPU = 2;
-    }
+    result.CPU = architect.round( (numVMs * databaseCorePerVM) - ((numVMs-1000) * databaseCorePerVMCoefficient) , 2);
 
     result.RAM = result.CPU * 2;
 

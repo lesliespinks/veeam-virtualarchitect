@@ -8,9 +8,22 @@ var architect = {};
 veeamSettings.incrementalPenalty = 5;
 
 // average processing speed per single VMDK read
+// equivalent to 1,000 MB/s for a 16 core physical proxy 
+// or 375 MB/s for a virtual proxy 
 veeamSettings.processingPerCore = 62.5;
 
-// average VM size in GB
+// Average VM size in GB
+// 
+// For an average VM size of default 100 GB, the 62.5 MB/s 
+// per processing core is the equivalent to 18 VMs per 
+// 8 hours per core for a full backup, or 36 VMs per 8 hours per core 
+// for a 10% incremental pass with the $incrementalPenalty of 5x. 
+//
+// According to Best Practices guide, one should estimate 
+// 30 VMs per CPU core, so these measures are 20% less 
+// conservative.
+//
+// Consider increasing average VM size to make the number fit?
 veeamSettings.averageVMSize = 100;
 
 // baseline backup window in hours (actual data transfer)
@@ -18,35 +31,41 @@ veeamSettings.backupWindow = 8;
 veeamSettings.fullBackupWindow = 16;
 veeamSettings.fullSplitDays = 1;
 
-
 // baseline change rate in decimal
+//
+// Reusing conservative change rate from Restore Point Simulator
 veeamSettings.changeRate = 0.10;
 
-// multiplier for number of VMs per backup window
+// NOT USED! Multiplier for number of VMs per backup window
 // the best practices rule is 30 VMs per 8 hour window
 // assuming 10% change, 8 hours backup window and 100 GB VM size
+//
+// Can be calculated from $processingPerCore, $incrementalPenalty,
+// $changeRate and $backupWindow.
 veeamSettings.VMsPerCore = 30;
 
-// default amount of cores per proxy
-// assuming physical proxy with 20 cores
+// Default CPU cores per physical proxy
 veeamSettings.pProxyCores = 16;
 
-// default amount of cores per proxy
-// assuming physical proxy with 20 cores
+// Default CPU cores per virtual proxy
 veeamSettings.vProxyCores = 6;
 
 // number of VMs per job
-veeamSettings.VMsPerJobClassic = 40;
-veeamSettings.VMsPerJobPerVMChain = 80;
-veeamSettings.mode = "classic"; // Default mode
+// Aligned with Best Practices for version 9. Keep assuming 
+// per job chains, as this is the most conservative estimate.
+//
+// TODO: Add switch to "per VM" jobs
+veeamSettings.VMsPerJobClassic = 30;
+veeamSettings.VMsPerJobPerVMChain = 90;
+veeamSettings.mode = "classic";
 
 architect.round = function(num, round) {
-    return (Math.ceil(num / round) * round);
+		return (Math.ceil(num / round) * round);
 };
 
 architect.applianceCores = function(proxyCores, repositoryCores) {
-    // Reducing the CPU required for repository by 50% when combined as repository.
-    return architect.round(proxyCores+(repositoryCores*0.5),4);
+		// Reducing the CPU required for repository by 50% when combined as repository.
+		return architect.round(proxyCores+(repositoryCores*0.5),4);
 };
 
 /**
@@ -56,17 +75,17 @@ architect.applianceCores = function(proxyCores, repositoryCores) {
  * @returns {object} Information about repository servers
  */
 architect.repositoryServer = function(proxyCPU) {
-    var result = {};
+		var result = {};
 
-    result.CPU = Math.ceil((proxyCPU * 0.5 ) / 2) * 2;
-    result.RAM = result.CPU * 4;
+		result.CPU = Math.ceil((proxyCPU * 0.5 ) / 2) * 2;
+		result.RAM = result.CPU * 4;
 
-    if (client.backupCopyEnabled) {
-        result.CPU = Math.ceil(( (result.CPU * 2) * 0.65 ) / 2) * 2;
-        result.RAM = Math.ceil((result.RAM * 2) * 0.65);
-    }
+		if (client.backupCopyEnabled) {
+				result.CPU = Math.ceil(( (result.CPU * 2) * 0.65 ) / 2) * 2;
+				result.RAM = Math.ceil((result.RAM * 2) * 0.65);
+		}
 
-    return result;
+		return result;
 };
 
 /**
@@ -76,59 +95,59 @@ architect.repositoryServer = function(proxyCPU) {
  * @returns {object} Information about proxy servers
  */
 architect.proxyServer = function(numVMs) {
-    var result = {};
+		var result = {};
 
-    var pFullThroughput = veeamSettings.processingPerCore * veeamSettings.pProxyCores;
-    var pIncThroughput = pFullThroughput / veeamSettings.incrementalPenalty;
-    var vFullThroughput = veeamSettings.processingPerCore * veeamSettings.vProxyCores;
-    var vIncThroughput = vFullThroughput / veeamSettings.incrementalPenalty;
-
-
-    result.fullBackup = (numVMs * client.averageVMSize)*1024; // in MB
-    result.incBackup = ((numVMs * client.averageVMSize)*1024) * client.changeRate; // in MB
-    result.fullThroughput = Math.round( result.fullBackup/(3600*client.fullBackupWindow) ); // MB/s
-    result.incThroughput = Math.round( result.incBackup/(3600*client.backupWindow) ); // MB/s
-
-    pNumProxy = [];
-    vNumProxy = [];
-
-    // Check throughput required for each mode, and validate against
-    // the throughput available for physical and virtual deployments
-    pNumProxy.push(result.fullThroughput / pFullThroughput);
-    pNumProxy.push(result.incThroughput / pIncThroughput);
-
-    vNumProxy.push(result.fullThroughput / vFullThroughput);
-    vNumProxy.push(result.incThroughput / vIncThroughput);
-
-    if ( client.fullSplitDays > 1 ) {
-        result.partialFullBackup = result.fullBackup/client.fullSplitDays;
-        result.partialIncBackup = result.incBackup*((client.fullSplitDays-1)/client.fullSplitDays);
-        result.partialFullThroughput = Math.round( (result.fullBackup/client.fullSplitDays)/(3600*client.backupWindow) );
-        result.partialIncThroughput =  Math.round( (result.incThroughput * (client.fullSplitDays-1)/client.fullSplitDays) );
-
-        pNumProxy.push(result.partialFullThroughput / pIncThroughput);
-        vNumProxy.push(result.partialFullThroughput / vFullThroughput);
-    }
+		var pFullThroughput = veeamSettings.processingPerCore * veeamSettings.pProxyCores;
+		var pIncThroughput = pFullThroughput / veeamSettings.incrementalPenalty;
+		var vFullThroughput = veeamSettings.processingPerCore * veeamSettings.vProxyCores;
+		var vIncThroughput = vFullThroughput / veeamSettings.incrementalPenalty;
 
 
-    // Return only the max values for different calculation methods
-    result.pNumProxy = Math.ceil( Math.max.apply(null, pNumProxy) );
-    result.vNumProxy = Math.ceil( Math.max.apply(null, vNumProxy) );
+		result.fullBackup = (numVMs * client.averageVMSize)*1024; // in MB
+		result.incBackup = ((numVMs * client.averageVMSize)*1024) * client.changeRate; // in MB
+		result.fullThroughput = Math.round( result.fullBackup/(3600*client.fullBackupWindow) ); // MB/s
+		result.incThroughput = Math.round( result.incBackup/(3600*client.backupWindow) ); // MB/s
+
+		pNumProxy = [];
+		vNumProxy = [];
+
+		// Check throughput required for each mode, and validate against
+		// the throughput available for physical and virtual deployments
+		pNumProxy.push(result.fullThroughput / pFullThroughput);
+		pNumProxy.push(result.incThroughput / pIncThroughput);
+
+		vNumProxy.push(result.fullThroughput / vFullThroughput);
+		vNumProxy.push(result.incThroughput / vIncThroughput);
+
+		if ( client.fullSplitDays > 1 ) {
+				result.partialFullBackup = result.fullBackup/client.fullSplitDays;
+				result.partialIncBackup = result.incBackup*((client.fullSplitDays-1)/client.fullSplitDays);
+				result.partialFullThroughput = Math.round( (result.fullBackup/client.fullSplitDays)/(3600*client.backupWindow) );
+				result.partialIncThroughput =  Math.round( (result.incThroughput * (client.fullSplitDays-1)/client.fullSplitDays) );
+
+				pNumProxy.push(result.partialFullThroughput / pIncThroughput);
+				vNumProxy.push(result.partialFullThroughput / vFullThroughput);
+		}
 
 
-    CPU = [];
-    RAM = [];
+		// Return only the max values for different calculation methods
+		result.pNumProxy = Math.ceil( Math.max.apply(null, pNumProxy) );
+		result.vNumProxy = Math.ceil( Math.max.apply(null, vNumProxy) );
 
-    CPU.push(result.pNumProxy * veeamSettings.pProxyCores);
-    RAM.push(result.pNumProxy * veeamSettings.pProxyCores * 2);
-    CPU.push(result.vNumProxy * veeamSettings.vProxyCores);
-    RAM.push(result.vNumProxy * veeamSettings.vProxyCores * 2);
 
-    // Return only the min values for CPU/RAM requirement
-    result.CPU = Math.ceil( Math.min.apply(null, CPU) );
-    result.RAM = Math.ceil( Math.min.apply(null, RAM) );
+		CPU = [];
+		RAM = [];
 
-    return result;
+		CPU.push(result.pNumProxy * veeamSettings.pProxyCores);
+		RAM.push(result.pNumProxy * veeamSettings.pProxyCores * 2);
+		CPU.push(result.vNumProxy * veeamSettings.vProxyCores);
+		RAM.push(result.vNumProxy * veeamSettings.vProxyCores * 2);
+
+		// Return only the min values for CPU/RAM requirement
+		result.CPU = Math.ceil( Math.min.apply(null, CPU) );
+		result.RAM = Math.ceil( Math.min.apply(null, RAM) );
+
+		return result;
 };
 
 /**
@@ -141,34 +160,34 @@ architect.proxyServer = function(numVMs) {
 */
 architect.vbrServer = function(numVMs, mode, offsite) {
 
-    var result = {};
+		var result = {};
 
-    result.offsite = false;
-    result.copyJobs = 0;
+		result.offsite = false;
+		result.copyJobs = 0;
 
-    if (mode == "classic") {
-        result.jobs = Math.ceil(numVMs / client.VMsPerJobClassic);
-    }
+		if (mode == "classic") {
+				result.jobs = Math.ceil(numVMs / client.VMsPerJobClassic);
+		}
 
-    if (mode == "pervm") {
-        result.jobs = Math.ceil(numVMs / client.VMsPerJobPerVMChain);
-    }
+		if (mode == "pervm") {
+				result.jobs = Math.ceil(numVMs / client.VMsPerJobPerVMChain);
+		}
 
-    if (offsite == true) {
-        result.copyJobs = result.jobs;
-        result.offsite = true;
-    }
+		if (offsite == true) {
+				result.copyJobs = result.jobs;
+				result.offsite = true;
+		}
 
-    var concurrentJobs = result.jobs * 0.65;
+		var concurrentJobs = result.jobs * 0.65;
 
 
-    result.totalJobs = concurrentJobs + result.copyJobs;
-    result.totalJobsCPU = Math.ceil(result.totalJobs / 10);
+		result.totalJobs = concurrentJobs + result.copyJobs;
+		result.totalJobsCPU = Math.ceil(result.totalJobs / 10);
 
-    result.CPU = architect.round(result.totalJobsCPU, 2);
-    result.RAM = architect.round(result.CPU * 3, 4);
+		result.CPU = architect.round(result.totalJobsCPU, 2);
+		result.RAM = architect.round(result.CPU * 3, 4);
 
-    return result;
+		return result;
 };
 
 /**
@@ -180,24 +199,24 @@ architect.vbrServer = function(numVMs, mode, offsite) {
  */
 architect.SQLDatabase = function(numVMs, offsite) {
 
-    if (offsite == true) {
-        numVMs = numVMs*1.5;
-    }
+		if (offsite == true) {
+				numVMs = numVMs*1.5;
+		}
 
-    var databaseCorePerVM = 0.0045;
+		var databaseCorePerVM = 0.0045;
 
-    if (numVMs > 1000) {
-        var databaseCorePerVMCoefficient = 0.00125;
-    } else {
-        var databaseCorePerVMCoefficient = 0;
-    }
+		if (numVMs > 1000) {
+				var databaseCorePerVMCoefficient = 0.00125;
+		} else {
+				var databaseCorePerVMCoefficient = 0;
+		}
 
 
-    var result = {};
+		var result = {};
 
-    result.CPU = architect.round( (numVMs * databaseCorePerVM) - ((numVMs-1000) * databaseCorePerVMCoefficient) , 2);
+		result.CPU = architect.round( (numVMs * databaseCorePerVM) - ((numVMs-1000) * databaseCorePerVMCoefficient) , 2);
 
-    result.RAM = result.CPU * 2;
+		result.RAM = result.CPU * 2;
 
-    return result;
+		return result;
 };
